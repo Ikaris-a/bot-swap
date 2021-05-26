@@ -3,7 +3,7 @@ import express from "express";
 import chalk from "chalk";
 import abiDecoder from "abi-decoder";
 const app = express();
-const data = {
+let data = {
   WBNB: "0x2219845942d28716c0F7C605765fABDcA1a7d9E0", //wbnb
 
   TO_PURCHASE: "0x6d9eb0A1a559e7C80BD2fD689a13Bf479048130D", // token to purchase = BUSD for test 0xe9e7cea3dedca5984780bafc599bd69add087d56
