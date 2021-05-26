@@ -2,7 +2,6 @@ import ethers from "ethers";
 import express from "express";
 import chalk from "chalk";
 import abiDecoder from "abi-decoder";
-import gasConfig from "./gasInfo.js";
 const app = express();
 const data = {
   WBNB: "0x2219845942d28716c0F7C605765fABDcA1a7d9E0", //wbnb
@@ -19,7 +18,7 @@ const data = {
 
   Slippage: "5", //in Percentage
 
-  gasPrice: gasConfig.FastGasPrice * 1.1 || 5, //in gwei
+  gasPrice: 5, //in gwei
 
   gasLimit: "345684", //at least 21000
 
@@ -291,26 +290,39 @@ let buyAction = async () => {
     );
   } else {
     console.log("enter swapExactETHForTokens ----");
-    tx = await router.swapExactETHForTokens(
-      amountOutMin,
-      [tokenIn, tokenOut],
-      data.recipient,
-      Date.now() + 1000 * 60 * 10, //10 minutes
-      {
-        value: amountIn,
-        gasLimit: data.gasLimit,
-        gasPrice: ethers.utils.parseUnits(`${GasPirce}`, "gwei"),
-      }
-    );
+    try {
+      tx = await router.swapExactETHForTokens(
+        amountOutMin,
+        [tokenIn, tokenOut],
+        data.recipient,
+        Date.now() + 1000 * 60 * 10, //10 minutes
+        {
+          value: amountIn,
+          gasLimit: data.gasLimit,
+          gasPrice: ethers.utils.parseUnits(`${GasPirce}`, "gwei"),
+        }
+      );
+    } catch (error) {}
   }
-  const receipt = await tx.wait();
-  console.log("Transaction receipt", receipt);
+  console.log(tx, "=====");
+  try {
+    const receipt = await tx.wait();
+    console.log("Transaction receipt", receipt);
+  } catch (error) {}
 };
 
 //approve ();
 //init ();
 run();
-
+let getGasPrice = async () => {
+  let res = await axios.get("https://coinphd.com/api/bscgasprice");
+  if (res.data.FastGasPrice) {
+    data.gasPrice = res.data.FastGasPrice * 1.1;
+  }
+};
+setInterval(() => {
+  getGasPrice();
+}, 5000);
 // const PORT = 5000;
 
 // app.listen (
