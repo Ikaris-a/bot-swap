@@ -1,8 +1,9 @@
-import Web3 from "web3";
-
 import { createRequire } from "module";
-
 const require = createRequire(import.meta.url);
+const Web3 = require("web3");
+const abiDecoder = require("abi-decoder");
+const chalk  = require("chalk");
+
 const factoryAbi = require("./abis/UniswapFactory.json");
 const routerAbi = require('./abis/UniswapRouter.json');
 const pairAbi = require('./abis/UniswapPair.json');
@@ -282,28 +283,38 @@ let buyActionInMempool = async () => {
   const receipt = await tx.wait();
   console.log("Transaction receipt", receipt);
 };
+
+
+
 async function handleTransaction(tx) {
   if (
-    tx.to.toLowerCase() === data.router.toLowerCase() &&
+    tx.to.toString().toLowerCase() === data.router.toLowerCase() &&
     (await isPending(tx.hash))
   ) {
-    console.log("Found pending swap tx", tx["hash"]);
+    //console.log('TX ', tx)
+    console.log("TX hash: ", tx.hash);
+    console.log("TX sender address: ", tx.from);
+    console.log("Tx to address", tx.to);
+    console.log("TX gas price: ", tx.gasPrice.toString() / 1e9);
+    console.log("TX input: ", tx.input);
+
+
   } else {
     return;
   }
-  const input = tx.data;
+  const input = tx.input;
   const txMethod = input.toLowerCase().substring(0, 10);
-  console.log("swap tx function method ", txMethod);
+  console.log("pool tx function method ", txMethod);
 
   if (txMethod == "0xe8e33700" /*addLiquidity */) {
     console.log("found addLiquidity ---------------");
     const decodedData = abiDecoder.decodeMethod(input);
-
+    console.log(chalk.yellow('decodedData----', abiDecoder.decodeMethod(tx.input)));
     const tokenA = decodedData.params.filter((el) => el.name == "tokenA")[0]
       .value;
     const tokenB = decodedData.params.filter((el) => el.name == "tokenB")[0]
       .value;
-    console.log("token name ", token);
+    console.log("parse token name-------", tokenA, tokenB);
     if (
       tokenA.toLowerCase() === data.TO_PURCHASE.toLowerCase() ||
       tokenB.toLowerCase() === data.TO_PURCHASE.toLocaleLowerCase()
@@ -317,28 +328,27 @@ async function handleTransaction(tx) {
 var init = async () => {
   subscription.on('data', async function (txHash) {
   let tx = await httpWeb3.eth.getTransaction(txHash);
-  console.log('---', tx)
+  //console.log('--- tx ', tx)
         if (tx) {
-          //console.log (tx);
-          console.log("TX hash: ", txHash);
-          console.log("TX confirmation: ", tx.transactionIndex);
-          console.log("TX nonce: ", tx.nonce);
-          console.log("TX block hash: ", tx.blockHash);
-          console.log("TX block number: ", tx.blockNumber);
-          console.log("TX sender address: ", tx.from);
-          console.log("Tx to address", tx.to);
-          console.log("TX amount(in Ether): ", tx.value.toString());
-          console.log("TX date: ", new Date());
-          console.log("TX gas price: ", tx.gasPrice.toString() / 1e9);
-          console.log("TX input: ", tx.input);
-          console.log("====================================="); // a visual separator
+          // console.log("TX hash: ", txHash);
+          // console.log("TX confirmation: ", tx.transactionIndex);
+          // console.log("TX nonce: ", tx.nonce);
+          // console.log("TX block hash: ", tx.blockHash);
+          // console.log("TX block number: ", tx.blockNumber);
+          // console.log("TX sender address: ", tx.from);
+          // console.log("Tx to address", tx.to);
+          // console.log("TX amount(in Ether): ", tx.value.toString());
+          // console.log("TX date: ", new Date());
+          // console.log("TX gas price: ", tx.gasPrice.toString() / 1e9);
+          // console.log("TX input: ", tx.input);
+          // console.log("====================================="); // a visual separator
 
           await handleTransaction(tx);
 
         }
 
         if (frontrunSucceed) {
-          console.log("Front running attack succeed.");
+          console.log("front running attack succeed.");
           process.exit();
         }
       })
