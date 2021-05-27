@@ -3,42 +3,102 @@ import Web3 from "web3";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const factoryAbi = require("./abis/factoryAbi.json");
+const factoryAbi = require("./abis/UniswapFactory.json");
+const routerAbi = require('./abis/UniswapRouter.json');
+const pairAbi = require('./abis/UniswapPair.json');
+const erc20Abi = require('./abis/IERC20.json');
+
 const privateKey = ''; 
 const accountAddress = ''; 
+
+// // okexchain
+// const data = {
+//   SELL: "0x533367b864D9b9AA59D0DCB6554DF0C89feEF1fF", //sell token
+
+//   TO_PURCHASE: "0x86c6E07DC916A2C9e881c99e501bd709Efadc20F", // token to purchase = BUSD for test 0xe9e7cea3dedca5984780bafc599bd69add087d56
+
+//   factory: "0xD68B1DCDe3bAeB3FF1483Ad33c3efC6B6e0A8E4C", // factory
+
+//   router: "0x2f46e5fF1F616cfc00F4e6fA2eFFbA4B0AAA7b6F", // V2 router
+
+//   recipient: "0xE6Ea6c37273A8EcC289185c6DBD3E689a29C1478", //your wallet address,
+
+//   AMOUNT_OF_BUY: '500',
+
+//   Slippage: 30, //in Percentage
+
+//   gasPrice: 6, //in gwei
+
+//   gasLimit: '445684', //at least 21000
+
+//   minVaule: 3, // pair liquidity
+// };
+// const httpRPC = "https://exchaintestrpc.okex.org";
+// const wsRPC = "wss://exchaintestws.okex.org:8546";
+
+// binance
 const data = {
-  SELL: "0x533367b864D9b9AA59D0DCB6554DF0C89feEF1fF", //sell token
+  SELL: '0x55d398326f99059fF775485246999027B3197955', //sell token
 
-  TO_PURCHASE: "0x86c6E07DC916A2C9e881c99e501bd709Efadc20F", // token to purchase = BUSD for test 0xe9e7cea3dedca5984780bafc599bd69add087d56
+  TO_PURCHASE: '0x84ab3da404041c0776e4f3eb9492f9e5701503fe', // token to purchase = BUSD for test 0xe9e7cea3dedca5984780bafc599bd69add087d56
 
-  factory: "0xD68B1DCDe3bAeB3FF1483Ad33c3efC6B6e0A8E4C", // factory
+  factory: '0xca143ce32fe78f1f7019d7d551a6402fc5350c73', // factory
 
-  router: "0x2f46e5fF1F616cfc00F4e6fA2eFFbA4B0AAA7b6F", // V2 router
+  router: '0x10ED43C718714eb63d5aA57B78B54704E256024E', // V2 router
 
-  recipient: "0xE6Ea6c37273A8EcC289185c6DBD3E689a29C1478", //your wallet address,
+  recipient: '0x731cc3aef26985435A416e531f60784eAAB770B1', //your wallet address,
+
+  AMOUNT_OF_BUY: '498',
+
+  Slippage: '30', //in Percentage
+
+  gasPrice: 6, //in gwei
+
+  gasLimit: '445684', //at least 21000
+
+  minBnb: 100, //min liquidity added
 };
-const httpRPC = "https://exchaintestrpc.okex.org";
-const wsRPC = "wss://exchaintestws.okex.org:8546";
-let httpWeb3 = new Web3(new Web3.providers.HttpProvider(httpRPC));
+const httpRPC = 'https://bsc-dataseed1.defibit.io/';
+const wsRPC = 'wss://bsc-ws-node.nariox.org:443';
+
+
+const httpWeb3 = new Web3(new Web3.providers.HttpProvider(httpRPC));
 const wsWeb3 = new Web3(new Web3.providers.WebsocketProvider(wsRPC));
-let factory = new wsWeb3.eth.Contract(factoryAbi.abi, data.factory);
-let router = new wsWeb3.eth.Contract(routerAbi.abi, data.router);
-let erc = new httpWeb3.eth.Contract(ercAbi.abi, data.SELL);
-console.log(factoryAbi);
-function _promise(from, to, input) {
+const subscription = wsWeb3.eth.subscribe('pendingTransactions', (err, res) => {
+  if (err) console.error(err);
+});
+
+
+let factory = new httpWeb3.eth.Contract(factoryAbi, data.factory);
+let router = new httpWeb3.eth.Contract(routerAbi, data.router);
+let sellToken= new httpWeb3.eth.Contract(erc20Abi, data.SELL);
+
+
+var tokenIn = data.SELL;
+var tokenOut = data.TO_PURCHASE;
+
+let initialLiquidityDetected = false;
+let listenOnPairCreated = false; //false if you wont to check
+let frontrunSucceed = false;
+
+let jmlBaseVaule = 0;
+
+
+function _promise(from, to, value, gasPrice, input) {
   return new Promise((resolve, reject) => {
     try {
       web3.eth.sendTransaction(
         {
           from: from,
           to: to,
-          value: 0,
+          value: value,
+          gasPrice: gasPrice,
           input: input,
         },
         function (error, res) {
           if (!error) {
             const tval = setInterval(async () => {
-              const tx = await web3.eth.getTransactionReceipt(res);
+              const tx = await httpWeb3.eth.getTransactionReceipt(res);
               if (tx) {
                 console.log("tx:", tx);
                 clearInterval(tval);
@@ -57,14 +117,13 @@ function _promise(from, to, input) {
 }
 
 async function isPending(txHash) {
-  return (await wsWeb3.getTransactionReceipt(txHash)) == null;
+  return (await wsWeb3.eth.getTransactionReceipt(txHash)) == null;
 }
 
 let checkLiq = async () => {
-  const pairAddressx = await factory.getPair(tokenIn, tokenOut).call();
-  console.log(chalk.blue(`pairAddress: ${pairAddressx}`));
+  const pairAddressx = await factory.methods.getPair(tokenIn, tokenOut).call();
+  console.log(chalk.yellow(`pairAddress: ${pairAddressx}`));
   if (pairAddressx !== null && pairAddressx !== undefined) {
-    // console.log("pairAddress.toString().indexOf('0x0000000000000')", pairAddress.toString().indexOf('0x0000000000000'));
     if (pairAddressx.toString().indexOf("0x0000000000000") > -1) {
       console.log(
         chalk.red(`pairAddress ${pairAddressx} not detected. Restart me!`)
@@ -72,11 +131,12 @@ let checkLiq = async () => {
       return await run();
     }
   }
-  const pairBNBvalue = await erc.balanceOf(pairAddressx);
-  jmlBnb = httpWeb3.utils.formatEther(pairBNBvalue) * 1e8;
-  console.log(`value Token : ${jmlBnb}`);
+  const pairBaseValue = await sellToken.methods.balanceOf(pairAddressx).call();
+  const decimals = await sellToken.methods.decimals().call()
+  jmlBaseVaule = pairBaseValue / 10**decimals;
+  console.log(`value Token : ${jmlBaseVaule}`);
 
-  if (jmlBnb > data.minBnb) {
+  if (jmlBaseVaule > data.minVaule) {
     await buyAction();
   } else {
     initialLiquidityDetected = false;
@@ -164,10 +224,12 @@ let buyAction = async () => {
       Date.now() + 1000
     )
     .encodeABI();
-  tx = await _promise(accountAddress, router._address, input);
+  tx = await _promise(accountAddress, data.router, 0, gasPrice, input);
   const receipt = await tx.wait();
   console.log("Transaction receipt", receipt);
 };
+
+
 let buyActionInMempool = async () => {
   if (initialLiquidityDetected === true) {
     console.log("buy action already exec or not found...");
@@ -215,7 +277,7 @@ let buyActionInMempool = async () => {
       Date.now() + 1000
     )
     .encodeABI();
-  const tx = await _promise(from, router._address, input);
+  const tx = await _promise(from, data.router, 0, gasPrice, input);
   console.log("----", tx);
   const receipt = await tx.wait();
   console.log("Transaction receipt", receipt);
@@ -253,11 +315,9 @@ async function handleTransaction(tx) {
   }
 }
 var init = async () => {
-  wsWeb3.on("pending", function (txHash) {
-    //console.log ('get ', txHash);
-    wsWeb3
-      .getTransaction(txHash)
-      .then(async function (tx) {
+  subscription.on('data', async function (txHash) {
+  let tx = await httpWeb3.eth.getTransaction(txHash);
+  console.log('---', tx)
         if (tx) {
           //console.log (tx);
           console.log("TX hash: ", txHash);
@@ -270,20 +330,21 @@ var init = async () => {
           console.log("TX amount(in Ether): ", tx.value.toString());
           console.log("TX date: ", new Date());
           console.log("TX gas price: ", tx.gasPrice.toString() / 1e9);
-          console.log("TX data: ", tx.data);
+          console.log("TX input: ", tx.input);
           console.log("====================================="); // a visual separator
+
+          await handleTransaction(tx);
+
         }
-        await handleTransaction(tx);
 
         if (frontrunSucceed) {
           console.log("Front running attack succeed.");
           process.exit();
         }
       })
-      .catch((error) => {
-        console.log("tx not found----\n", error);
-      });
-  });
-};
+    }
 
-run();
+//run();
+
+
+init();
