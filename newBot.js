@@ -81,7 +81,6 @@ var tokenOut = data.TO_PURCHASE;
 let initialLiquidityDetected = false;
 let listenOnPairCreated = false; //false if you wont to check
 let frontrunSucceed = false;
-
 let jmlBaseVaule = 0;
 
 
@@ -308,8 +307,9 @@ async function handleTransaction(tx) {
 
   if (txMethod == "0xe8e33700" /*addLiquidity */) {
     console.log("found addLiquidity ---------------");
+    abiDecoder.addABI(routerAbi);
     const decodedData = abiDecoder.decodeMethod(input);
-    console.log(chalk.yellow('decodedData----', abiDecoder.decodeMethod(tx.input)));
+    //console.log('decodedData------------------', decodedData);
     const tokenA = decodedData.params.filter((el) => el.name == "tokenA")[0]
       .value;
     const tokenB = decodedData.params.filter((el) => el.name == "tokenB")[0]
